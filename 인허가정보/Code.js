@@ -13,7 +13,13 @@ const CONFIG = {
   DATA_TYPE: 'json',
   DEFAULT_START_IDX: 1,
   DEFAULT_END_IDX: 100,
-  SCRIPT_PROPERTY_KEY: 'FOOD_SAFETY_API_KEY'
+  SCRIPT_PROPERTY_KEY: 'FOOD_SAFETY_API_KEY',
+  // 필터 설정 셀 위치
+  FILTER_CELLS: {
+    START_DATE: 'K1',  // 시작일 (YYYYMMDD)
+    END_DATE: 'K2',    // 종료일 (YYYYMMDD)
+    BUSINESS_TYPE: 'K3' // 업종 (쉼표로 구분)
+  }
 };
 
 // 데이터 필드 매핑
@@ -39,6 +45,7 @@ function onOpen() {
   ui.createMenu('🍽️ 인허가정보')
     .addItem('API 키 설정', 'showApiKeyDialog')
     .addSeparator()
+    .addItem('필터 설정 초기화', 'initializeFilterCells')
     .addItem('데이터 가져오기 (1-100)', 'fetchAndSaveData')
     .addSeparator()
     .addItem('API 키 확인', 'checkApiKey')
@@ -104,6 +111,75 @@ function saveApiKey(apiKey) {
 function getApiKey() {
   const scriptProperties = PropertiesService.getScriptProperties();
   return scriptProperties.getProperty(CONFIG.SCRIPT_PROPERTY_KEY);
+}
+
+// ========================================
+// 필터 설정 함수
+// ========================================
+
+/**
+ * 필터 설정 셀 초기화 (K1, K2, K3)
+ */
+function initializeFilterCells() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const ui = SpreadsheetApp.getUi();
+
+  // K1: 시작일 설정
+  sheet.getRange('J1').setValue('시작일:');
+  sheet.getRange('J1').setFontWeight('bold').setBackground('#e8f0fe');
+  sheet.getRange('K1').setValue('20250101');
+  sheet.getRange('K1').setNumberFormat('@STRING@'); // 텍스트 형식
+  sheet.getRange('K1').setNote('형식: YYYYMMDD\n예: 20250101');
+
+  // K2: 종료일 설정
+  sheet.getRange('J2').setValue('종료일:');
+  sheet.getRange('J2').setFontWeight('bold').setBackground('#e8f0fe');
+  sheet.getRange('K2').setValue('20251231');
+  sheet.getRange('K2').setNumberFormat('@STRING@');
+  sheet.getRange('K2').setNote('형식: YYYYMMDD\n예: 20251231');
+
+  // K3: 업종 설정 (드롭다운)
+  sheet.getRange('J3').setValue('업종:');
+  sheet.getRange('J3').setFontWeight('bold').setBackground('#e8f0fe');
+
+  // 드롭다운 규칙 생성
+  const businessTypes = [
+    '일반음식점',
+    '휴게음식점',
+    '일반음식점,휴게음식점',
+    '단란주점',
+    '유흥주점',
+    '제과점영업'
+  ];
+
+  const rule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(businessTypes, true)
+    .setAllowInvalid(false)
+    .setHelpText('업종을 선택하세요. 여러 개 선택 시 쉼표로 구분됩니다.')
+    .build();
+
+  sheet.getRange('K3').setDataValidation(rule);
+  sheet.getRange('K3').setValue('일반음식점');
+
+  ui.alert('✅ 완료', '필터 설정 셀이 초기화되었습니다.\n\nK1: 시작일\nK2: 종료일\nK3: 업종', ui.ButtonSet.OK);
+}
+
+/**
+ * 필터 설정 값 읽기
+ * @returns {Object} 필터 설정 객체
+ */
+function getFilterSettings() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+
+  const startDate = sheet.getRange(CONFIG.FILTER_CELLS.START_DATE).getValue();
+  const endDate = sheet.getRange(CONFIG.FILTER_CELLS.END_DATE).getValue();
+  const businessType = sheet.getRange(CONFIG.FILTER_CELLS.BUSINESS_TYPE).getValue();
+
+  return {
+    startDate: startDate ? String(startDate).replace(/[^0-9]/g, '') : '',
+    endDate: endDate ? String(endDate).replace(/[^0-9]/g, '') : '',
+    businessTypes: businessType ? String(businessType).split(',').map(t => t.trim()) : []
+  };
 }
 
 // ========================================
@@ -178,6 +254,76 @@ function extractDataFromResponse(apiResponse) {
 // ========================================
 // 데이터 처리 함수
 // ========================================
+
+/**
+ * 날짜 필터링 (시작일 ~ 종료일 범위)
+ * @param {Array} dataArray - API 데이터 배열
+ * @param {string} startDate - 시작일 (YYYYMMDD)
+ * @param {string} endDate - 종료일 (YYYYMMDD)
+ * @returns {Array} 필터링된 데이터 배열
+ */
+function filterByDateRange(dataArray, startDate, endDate) {
+  if (!startDate && !endDate) {
+    return dataArray; // 날짜 필터 없으면 전체 반환
+  }
+
+  return dataArray.filter(item => {
+    const updateDate = item.CHNG_DT || item.PRMS_DT || ''; // 최종수정일 또는 허가일
+
+    if (!updateDate) return false;
+
+    if (startDate && updateDate < startDate) return false;
+    if (endDate && updateDate > endDate) return false;
+
+    return true;
+  });
+}
+
+/**
+ * 업종 필터링
+ * @param {Array} dataArray - API 데이터 배열
+ * @param {Array} businessTypes - 업종 배열 (예: ['일반음식점', '휴게음식점'])
+ * @returns {Array} 필터링된 데이터 배열
+ */
+function filterByBusinessType(dataArray, businessTypes) {
+  if (!businessTypes || businessTypes.length === 0) {
+    return dataArray; // 업종 필터 없으면 전체 반환
+  }
+
+  return dataArray.filter(item => {
+    return businessTypes.includes(item.INDUTY_CD_NM);
+  });
+}
+
+/**
+ * 주소 중복 제거 (같은 주소는 최신 허가일만 남김)
+ * @param {Array} dataArray - API 데이터 배열
+ * @returns {Array} 중복 제거된 데이터 배열
+ */
+function removeDuplicatesByAddress(dataArray) {
+  const addressMap = new Map();
+
+  dataArray.forEach(item => {
+    const addr = item.ADDR || '';
+    const permitDate = item.PRMS_DT || '00000000';
+
+    if (!addressMap.has(addr)) {
+      // 처음 나온 주소
+      addressMap.set(addr, item);
+    } else {
+      // 이미 있는 주소 - 허가일 비교
+      const existing = addressMap.get(addr);
+      const existingDate = existing.PRMS_DT || '00000000';
+
+      if (permitDate > existingDate) {
+        // 새 데이터가 더 최신이면 교체
+        addressMap.set(addr, item);
+      }
+    }
+  });
+
+  return Array.from(addressMap.values());
+}
 
 /**
  * API 데이터를 스프레드시트 행 형식으로 변환
@@ -269,21 +415,54 @@ function saveDataToSheet(rows, sheet = null) {
 // ========================================
 
 /**
- * 데이터 가져오기 및 저장 (Phase 1 MVP)
- * 1-100번 데이터를 가져와서 현재 시트에 저장
+ * 데이터 가져오기 및 저장 (필터 적용)
+ * K1(시작일), K2(종료일), K3(업종) 셀 값을 읽어서 필터링된 데이터를 가져옴
  */
 function fetchAndSaveData() {
   const ui = SpreadsheetApp.getUi();
 
   try {
+    // 필터 설정 읽기
+    const filters = getFilterSettings();
+
+    Logger.log('필터 설정:', filters);
+
+    // 필터 확인 메시지
+    let filterMessage = '적용된 필터:\n';
+    if (filters.startDate) filterMessage += `- 시작일: ${filters.startDate}\n`;
+    if (filters.endDate) filterMessage += `- 종료일: ${filters.endDate}\n`;
+    if (filters.businessTypes.length > 0) filterMessage += `- 업종: ${filters.businessTypes.join(', ')}\n`;
+
     // API 호출
-    ui.alert('⏳ 데이터 수집 중', '데이터를 가져오고 있습니다. 잠시만 기다려주세요...', ui.ButtonSet.OK);
+    ui.alert('⏳ 데이터 수집 중', filterMessage + '\n데이터를 가져오고 있습니다. 잠시만 기다려주세요...', ui.ButtonSet.OK);
 
     const apiResponse = callFoodSafetyApi();
-    const dataArray = extractDataFromResponse(apiResponse);
+    let dataArray = extractDataFromResponse(apiResponse);
+
+    Logger.log(`API에서 받은 원본 데이터: ${dataArray.length}건`);
 
     if (dataArray.length === 0) {
       ui.alert('ℹ️ 알림', '가져올 데이터가 없습니다.', ui.ButtonSet.OK);
+      return;
+    }
+
+    // 1. 날짜 필터링
+    const beforeDateFilter = dataArray.length;
+    dataArray = filterByDateRange(dataArray, filters.startDate, filters.endDate);
+    Logger.log(`날짜 필터 후: ${dataArray.length}건 (${beforeDateFilter - dataArray.length}건 제외)`);
+
+    // 2. 업종 필터링
+    const beforeTypeFilter = dataArray.length;
+    dataArray = filterByBusinessType(dataArray, filters.businessTypes);
+    Logger.log(`업종 필터 후: ${dataArray.length}건 (${beforeTypeFilter - dataArray.length}건 제외)`);
+
+    // 3. 주소 중복 제거 (최신 허가일 우선)
+    const beforeDuplicateRemoval = dataArray.length;
+    dataArray = removeDuplicatesByAddress(dataArray);
+    Logger.log(`중복 제거 후: ${dataArray.length}건 (${beforeDuplicateRemoval - dataArray.length}건 제외)`);
+
+    if (dataArray.length === 0) {
+      ui.alert('ℹ️ 알림', '필터 조건에 맞는 데이터가 없습니다.\n\n필터 설정을 확인해주세요.', ui.ButtonSet.OK);
       return;
     }
 
@@ -297,8 +476,9 @@ function fetchAndSaveData() {
     ui.alert(
       '✅ 완료',
       `총 ${dataArray.length}개의 음식점 정보를 성공적으로 가져왔습니다.\n\n` +
-      `- 수집 시간: ${new Date().toLocaleString('ko-KR')}\n` +
-      `- 데이터 범위: 1-100`,
+      filterMessage +
+      `\n- 수집 시간: ${new Date().toLocaleString('ko-KR')}\n` +
+      `- 데이터 범위: 1-100 중 필터링됨`,
       ui.ButtonSet.OK
     );
 

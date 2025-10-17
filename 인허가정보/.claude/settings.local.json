@@ -3,7 +3,9 @@
     "allow": [
       "Read(//c/Users/admin/Desktop/git-drive/**)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git push)",
+      "Bash(clasp push:*)"
     ],
     "deny": [],
     "ask": []
