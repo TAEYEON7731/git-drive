@@ -16,8 +16,8 @@ const CONFIG = {
   SCRIPT_PROPERTY_KEY: 'FOOD_SAFETY_API_KEY',
   // 필터 설정 셀 위치
   FILTER_CELLS: {
-    START_DATE: 'K1',  // 시작일 (YYYYMMDD)
-    END_DATE: 'K2',    // 종료일 (YYYYMMDD)
+    // START_DATE: 'K1',  // 시작일 (YYYYMMDD) - 사용 안 함
+    // END_DATE: 'K2',    // 종료일 (YYYYMMDD) - 사용 안 함
     BUSINESS_TYPE: 'K3' // 업종 (쉼표로 구분)
   }
 };
@@ -118,12 +118,14 @@ function getApiKey() {
 // ========================================
 
 /**
- * 필터 설정 셀 초기화 (K1, K2, K3)
+ * 필터 설정 셀 초기화 (K3만 사용)
  */
 function initializeFilterCells() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   const ui = SpreadsheetApp.getUi();
 
+  // K1, K2는 주석 처리 (날짜 필터 사용 안 함)
+  /*
   // K1: 시작일 설정
   sheet.getRange('J1').setValue('시작일:');
   sheet.getRange('J1').setFontWeight('bold').setBackground('#e8f0fe');
@@ -143,6 +145,7 @@ function initializeFilterCells() {
   k2Range.setValue('20251231');
   k2Range.setNote('형식: YYYYMMDD\n예: 20251231\n\n앞에 작은따옴표(\')를 붙여서 \'20251231 로 입력하세요!');
   k2Range.setBackground('#fff9c4'); // 노란색 배경
+  */
 
   // K3: 업종 설정 (드롭다운)
   sheet.getRange('J3').setValue('업종:');
@@ -167,14 +170,16 @@ function initializeFilterCells() {
   sheet.getRange('K3').setDataValidation(rule);
   sheet.getRange('K3').setValue('일반음식점');
 
-  ui.alert('✅ 완료', '필터 설정 셀이 초기화되었습니다.\n\nK1: 시작일\nK2: 종료일\nK3: 업종', ui.ButtonSet.OK);
+  ui.alert('✅ 완료', '필터 설정 셀이 초기화되었습니다.\n\nK3: 업종 (날짜 필터는 사용 안 함)', ui.ButtonSet.OK);
 }
 
+// 날짜 필터 관련 함수들 - 주석 처리 (사용 안 함)
+/*
 /**
  * 날짜 값을 YYYYMMDD 형식으로 변환
  * @param {*} value - 셀 값 (문자열, 숫자, 날짜 객체 등)
  * @returns {string} YYYYMMDD 형식 문자열
- */
+ *//*
 function convertToYYYYMMDD(value) {
   if (!value) return '';
 
@@ -197,27 +202,30 @@ function convertToYYYYMMDD(value) {
   // 그 외의 경우 빈 문자열 반환
   return '';
 }
+*/
 
 /**
- * 필터 설정 값 읽기
+ * 필터 설정 값 읽기 (업종만)
  * @returns {Object} 필터 설정 객체
  */
 function getFilterSettings() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
 
-  const startDateValue = sheet.getRange(CONFIG.FILTER_CELLS.START_DATE).getValue();
-  const endDateValue = sheet.getRange(CONFIG.FILTER_CELLS.END_DATE).getValue();
+  // 날짜 필터 사용 안 함
+  // const startDateValue = sheet.getRange(CONFIG.FILTER_CELLS.START_DATE).getValue();
+  // const endDateValue = sheet.getRange(CONFIG.FILTER_CELLS.END_DATE).getValue();
+
   const businessType = sheet.getRange(CONFIG.FILTER_CELLS.BUSINESS_TYPE).getValue();
 
-  const startDate = convertToYYYYMMDD(startDateValue);
-  const endDate = convertToYYYYMMDD(endDateValue);
+  // const startDate = convertToYYYYMMDD(startDateValue);
+  // const endDate = convertToYYYYMMDD(endDateValue);
 
-  Logger.log(`원본 시작일: ${startDateValue} -> 변환: ${startDate}`);
-  Logger.log(`원본 종료일: ${endDateValue} -> 변환: ${endDate}`);
+  // Logger.log(`원본 시작일: ${startDateValue} -> 변환: ${startDate}`);
+  // Logger.log(`원본 종료일: ${endDateValue} -> 변환: ${endDate}`);
 
   return {
-    startDate: startDate,
-    endDate: endDate,
+    // startDate: '',  // 날짜 필터 사용 안 함
+    // endDate: '',    // 날짜 필터 사용 안 함
     businessTypes: businessType ? String(businessType).split(',').map(t => t.trim()) : []
   };
 }
@@ -295,13 +303,15 @@ function extractDataFromResponse(apiResponse) {
 // 데이터 처리 함수
 // ========================================
 
+// 날짜 필터링 함수 - 주석 처리 (사용 안 함)
+/*
 /**
  * 날짜 필터링 (시작일 ~ 종료일 범위)
  * @param {Array} dataArray - API 데이터 배열
  * @param {string} startDate - 시작일 (YYYYMMDD)
  * @param {string} endDate - 종료일 (YYYYMMDD)
  * @returns {Array} 필터링된 데이터 배열
- */
+ *//*
 function filterByDateRange(dataArray, startDate, endDate) {
   if (!startDate && !endDate) {
     return dataArray; // 날짜 필터 없으면 전체 반환
@@ -318,6 +328,7 @@ function filterByDateRange(dataArray, startDate, endDate) {
     return true;
   });
 }
+*/
 
 /**
  * 업종 필터링
@@ -455,8 +466,8 @@ function saveDataToSheet(rows, sheet = null) {
 // ========================================
 
 /**
- * 데이터 가져오기 및 저장 (필터 적용)
- * K1(시작일), K2(종료일), K3(업종) 셀 값을 읽어서 필터링된 데이터를 가져옴
+ * 데이터 가져오기 및 저장 (업종 필터만 적용)
+ * K3(업종) 셀 값을 읽어서 필터링된 데이터를 가져옴
  */
 function fetchAndSaveData() {
   const ui = SpreadsheetApp.getUi();
@@ -469,8 +480,8 @@ function fetchAndSaveData() {
 
     // 필터 확인 메시지
     let filterMessage = '적용된 필터:\n';
-    if (filters.startDate) filterMessage += `- 시작일: ${filters.startDate}\n`;
-    if (filters.endDate) filterMessage += `- 종료일: ${filters.endDate}\n`;
+    // if (filters.startDate) filterMessage += `- 시작일: ${filters.startDate}\n`;  // 날짜 필터 사용 안 함
+    // if (filters.endDate) filterMessage += `- 종료일: ${filters.endDate}\n`;      // 날짜 필터 사용 안 함
     if (filters.businessTypes.length > 0) filterMessage += `- 업종: ${filters.businessTypes.join(', ')}\n`;
 
     // API 호출
@@ -486,10 +497,10 @@ function fetchAndSaveData() {
       return;
     }
 
-    // 1. 날짜 필터링
-    const beforeDateFilter = dataArray.length;
-    dataArray = filterByDateRange(dataArray, filters.startDate, filters.endDate);
-    Logger.log(`날짜 필터 후: ${dataArray.length}건 (${beforeDateFilter - dataArray.length}건 제외)`);
+    // 1. 날짜 필터링 - 주석 처리 (사용 안 함)
+    // const beforeDateFilter = dataArray.length;
+    // dataArray = filterByDateRange(dataArray, filters.startDate, filters.endDate);
+    // Logger.log(`날짜 필터 후: ${dataArray.length}건 (${beforeDateFilter - dataArray.length}건 제외)`);
 
     // 2. 업종 필터링
     const beforeTypeFilter = dataArray.length;
@@ -518,7 +529,7 @@ function fetchAndSaveData() {
       `총 ${dataArray.length}개의 음식점 정보를 성공적으로 가져왔습니다.\n\n` +
       filterMessage +
       `\n- 수집 시간: ${new Date().toLocaleString('ko-KR')}\n` +
-      `- 데이터 범위: 1-100 중 필터링됨`,
+      `- 데이터 범위: 1-100 중 업종 필터링됨`,
       ui.ButtonSet.OK
     );
 
