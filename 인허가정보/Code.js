@@ -127,16 +127,22 @@ function initializeFilterCells() {
   // K1: 시작일 설정
   sheet.getRange('J1').setValue('시작일:');
   sheet.getRange('J1').setFontWeight('bold').setBackground('#e8f0fe');
-  sheet.getRange('K1').setValue('20250101');
-  sheet.getRange('K1').setNumberFormat('@STRING@'); // 텍스트 형식
-  sheet.getRange('K1').setNote('형식: YYYYMMDD\n예: 20250101');
+
+  const k1Range = sheet.getRange('K1');
+  k1Range.setNumberFormat('@'); // 텍스트 형식 (@ 만 사용)
+  k1Range.setValue('20250101');
+  k1Range.setNote('형식: YYYYMMDD\n예: 20250101\n\n앞에 작은따옴표(\')를 붙여서 \'20250101 로 입력하세요!');
+  k1Range.setBackground('#fff9c4'); // 노란색 배경
 
   // K2: 종료일 설정
   sheet.getRange('J2').setValue('종료일:');
   sheet.getRange('J2').setFontWeight('bold').setBackground('#e8f0fe');
-  sheet.getRange('K2').setValue('20251231');
-  sheet.getRange('K2').setNumberFormat('@STRING@');
-  sheet.getRange('K2').setNote('형식: YYYYMMDD\n예: 20251231');
+
+  const k2Range = sheet.getRange('K2');
+  k2Range.setNumberFormat('@'); // 텍스트 형식
+  k2Range.setValue('20251231');
+  k2Range.setNote('형식: YYYYMMDD\n예: 20251231\n\n앞에 작은따옴표(\')를 붙여서 \'20251231 로 입력하세요!');
+  k2Range.setBackground('#fff9c4'); // 노란색 배경
 
   // K3: 업종 설정 (드롭다운)
   sheet.getRange('J3').setValue('업종:');
@@ -165,19 +171,53 @@ function initializeFilterCells() {
 }
 
 /**
+ * 날짜 값을 YYYYMMDD 형식으로 변환
+ * @param {*} value - 셀 값 (문자열, 숫자, 날짜 객체 등)
+ * @returns {string} YYYYMMDD 형식 문자열
+ */
+function convertToYYYYMMDD(value) {
+  if (!value) return '';
+
+  // 날짜 객체인 경우
+  if (value instanceof Date) {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}${month}${day}`;
+  }
+
+  // 문자열이나 숫자인 경우
+  const strValue = String(value).replace(/[^0-9]/g, '');
+
+  // 이미 8자리 숫자면 그대로 반환
+  if (strValue.length === 8) {
+    return strValue;
+  }
+
+  // 그 외의 경우 빈 문자열 반환
+  return '';
+}
+
+/**
  * 필터 설정 값 읽기
  * @returns {Object} 필터 설정 객체
  */
 function getFilterSettings() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
 
-  const startDate = sheet.getRange(CONFIG.FILTER_CELLS.START_DATE).getValue();
-  const endDate = sheet.getRange(CONFIG.FILTER_CELLS.END_DATE).getValue();
+  const startDateValue = sheet.getRange(CONFIG.FILTER_CELLS.START_DATE).getValue();
+  const endDateValue = sheet.getRange(CONFIG.FILTER_CELLS.END_DATE).getValue();
   const businessType = sheet.getRange(CONFIG.FILTER_CELLS.BUSINESS_TYPE).getValue();
 
+  const startDate = convertToYYYYMMDD(startDateValue);
+  const endDate = convertToYYYYMMDD(endDateValue);
+
+  Logger.log(`원본 시작일: ${startDateValue} -> 변환: ${startDate}`);
+  Logger.log(`원본 종료일: ${endDateValue} -> 변환: ${endDate}`);
+
   return {
-    startDate: startDate ? String(startDate).replace(/[^0-9]/g, '') : '',
-    endDate: endDate ? String(endDate).replace(/[^0-9]/g, '') : '',
+    startDate: startDate,
+    endDate: endDate,
     businessTypes: businessType ? String(businessType).split(',').map(t => t.trim()) : []
   };
 }
