@@ -43,12 +43,11 @@ const DATA_FIELDS = {
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
   ui.createMenu('🍽️ 인허가정보')
-    .addItem('API 키 설정', 'showApiKeyDialog')
+    .addItem('🔑 API 키 설정', 'showApiKeyDialog')
+    .addItem('👁️ API 키 확인', 'checkApiKey')
     .addSeparator()
-    .addItem('필터 설정 초기화', 'initializeFilterCells')
-    .addItem('데이터 가져오기 (1-100)', 'fetchAndSaveData')
-    .addSeparator()
-    .addItem('API 키 확인', 'checkApiKey')
+    .addItem('⚙️ 필터 설정 초기화', 'initializeFilterCells')
+    .addItem('📥 데이터 수집 (샘플 100건)', 'fetchAndSaveData')
     .addToUi();
 }
 
